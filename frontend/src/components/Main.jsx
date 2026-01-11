@@ -2,66 +2,68 @@ import { useEffect, useState } from 'react';
 
 export default function Main() {
     const [statusMessage, setStatusMessage] = useState("");
+    const [waterLevel, setWaterLevel] = useState(0);
 
-    const handleControl = async (command) => {
-        setStatusMessage(`Sending ${command}...`);
+    const fetchWaterLevel = async () => {
         try {
-            const response = await fetch('http://localhost:8000/api/run-iot/', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ command: command })
-            });
+            const response = await fetch('http://localhost:8000/api/get-water/');
             const data = await response.json();
             if (response.ok) {
-                setStatusMessage(data.message);
-                alert("Success: " + data.message);
-            } else {
-                setStatusMessage("Error: " + data.message);
-                alert("Error: " + data.message);
+                setWaterLevel(data.water);
             }
         } catch (error) {
-            console.error('Error:', error);
-            setStatusMessage("Failed to send command");
-            alert("Failed to send command");
+            console.error('Error fetching water level:', error);
         }
     };
 
+    useEffect(() => {
+        // Initial fetch
+        fetchWaterLevel();
+
+        // Setup polling every 5 seconds
+        const interval = setInterval(fetchWaterLevel, 5000);
+
+        return () => clearInterval(interval);
+    }, []);
+
+    // Calculate percentage for progress bar
+    const waterPercentage = Math.min(Math.round((waterLevel / 4095) * 100), 100);
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-            <h1 className="text-4xl font-bold mb-8 text-blue-600">IoT Device Control</h1>
+        <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 p-4 font-sans text-white">
+            <h1 className="text-5xl font-extrabold mb-10 text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-cyan-300">
+                Nexus Water Monitor
+            </h1>
 
-            <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md flex flex-col items-center">
-                <h2 className="text-2xl font-semibold mb-6 text-gray-700">Device Control (Pin 14)</h2>
+            <div className="w-full max-w-lg">
+                {/* Water Level Section */}
+                <div className="bg-slate-800/50 backdrop-blur-md p-10 rounded-3xl border border-slate-700 shadow-2xl flex flex-col items-center">
+                    <h2 className="text-2xl font-semibold mb-8 text-blue-200">System Fluid Dynamics</h2>
 
-                <div className="flex gap-6 w-full justify-center">
-                    <button
-                        onClick={() => handleControl("ON")}
-                        className="flex-1 px-6 py-4 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition duration-300 shadow-md transform hover:scale-105 uppercase tracking-wider"
-                    >
-                        Turn ON
-                    </button>
-                    <button
-                        onClick={() => handleControl("OFF")}
-                        className="flex-1 px-6 py-4 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition duration-300 shadow-md transform hover:scale-105 uppercase tracking-wider"
-                    >
-                        Turn OFF
-                    </button>
-                </div>
-
-                {statusMessage && (
-                    <div className={`mt-6 p-3 rounded-md w-full text-center ${statusMessage.includes("Error") || statusMessage.includes("Failed") ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700"}`}>
-                        {statusMessage}
+                    <div className="relative w-40 h-80 bg-slate-700 rounded-full overflow-hidden border-4 border-slate-600 shadow-inner">
+                        <div
+                            className="absolute bottom-0 w-full bg-linear-to-t from-blue-600 to-cyan-400 transition-all duration-1000 ease-in-out"
+                            style={{ height: `${waterPercentage}%` }}
+                        >
+                            <div className="absolute top-0 left-0 w-full h-4 bg-white/20 blur-sm animate-pulse"></div>
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <span className="text-3xl font-bold drop-shadow-md">{waterPercentage}%</span>
+                        </div>
                     </div>
-                )}
 
-                <div className="mt-8 text-sm text-gray-500 text-center">
-                    <p>Controls ESP32 Pin D14 via MQTT</p>
+                    <div className="mt-8 flex flex-col items-center">
+                        <p className="text-slate-400 text-sm">Raw ADC: <span className="text-blue-300 font-mono text-lg">{waterLevel}</span></p>
+                        <p className="mt-3 text-slate-400 text-xs tracking-widest uppercase opacity-50">
+                            Polling Active • 5s Cycle
+                        </p>
+                    </div>
                 </div>
             </div>
+
+            <footer className="mt-12 text-slate-500 text-sm tracking-widest uppercase">
+                ESP32 Nexus Series • ADC 34
+            </footer>
         </div>
     );
 }
-
-

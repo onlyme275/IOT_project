@@ -1,92 +1,94 @@
 import network
 from umqtt.simple import MQTTClient
-from time import sleep
-from machine import Pin
+from machine import Pin, ADC
 import ujson
+import utime
 
-SSID = 'xitiz'
-PASSWORD = 'password123'
+# ========= WIFI =========
+SSID = "xitiz"
+PASSWORD = "password123"
 
-MQTT_SERVER = "192.168.100.229"
+# ========= MQTT =========
+MQTT_SERVER = "192.168.4.2"
 MQTT_PORT = 1883
-MQTT_TOPIC = 'esp32/micro/control'  
-MQTT_CLIENT_ID = 'esp32_xitiz'
+CLIENT_ID = "esp32_water"
+WATER_TOPIC = b"esp32/micro/water"
+CONTROL_TOPIC = b"esp32/micro/control"
 
-control_pin = Pin(14, Pin.OUT)
-control_pin.value(0) 
-
+# ========= HARDWARE =========
+sensor = ADC(Pin(34))
+sensor.atten(ADC.ATTN_11DB)  
+relay = Pin(14, Pin.OUT)
 led = Pin(2, Pin.OUT)
 
-def sub_cb(topic, msg):
-    print((topic, msg))
-    try:
-        command = msg.decode()
-        if command == "ON":
-            control_pin.value(1)
-            print("Device turned ON")
-        elif command == "OFF":
-            control_pin.value(0)
-            print("Device turned OFF")
-    except Exception as e:
-        print(f"Error processing message: {e}")
+# ========= CALLBACK =========
+def on_message(topic, msg):
+    cmd = msg.decode()
+    if cmd == "ON":
+        relay.value(1)
+    elif cmd == "OFF":
+        relay.value(0)
 
-def connect_wifi():
-    wlan = network.WLAN(network.STA_IF)
-    wlan.active(True)
-    if not wlan.isconnected():
-        print('Connecting to network...')
-        wlan.connect(SSID, PASSWORD)
-        while not wlan.isconnected():
-            led.value(not led.value()) 
-            sleep(0.5)
-            pass
-    print('Network config:', wlan.ifconfig())
+# ========= WIFI AP SETUP =========
+def setup_ap():
+    ap = network.WLAN(network.AP_IF)
+    ap.active(True)
+    ap.config(essid=SSID, password=PASSWORD)
+    
+    # Wait for AP to be active
+    while not ap.active():
+        utime.sleep(0.5)
+        
+    print("AP Active. IP Config:", ap.ifconfig())
+    # Note: ESP32 AP IP is usually 192.168.4.1
+    # PC should connect to this AP and will likely get 192.168.4.2
     led.value(1)
 
+# ========= MQTT CONNECT =========
 def connect_mqtt():
-    global client
+    client = MQTTClient(CLIENT_ID, MQTT_SERVER, MQTT_PORT)
+    client.set_callback(on_message)
+    
+    print("Attempting MQTT connection to:", MQTT_SERVER)
     try:
-        if not network.WLAN(network.STA_IF).isconnected():
-            print("Wi-Fi not connected! Waiting for Wi-Fi...")
-            connect_wifi()
-            
-        print(f"Connecting to local MQTT broker: {MQTT_SERVER}:{MQTT_PORT}...")
-        # Create plain MQTT client for local Mosquitto
-        client = MQTTClient(
-            client_id=MQTT_CLIENT_ID,
-            server=MQTT_SERVER,
-            port=MQTT_PORT
-        )
-        client.set_callback(sub_cb)
         client.connect()
-        client.subscribe(MQTT_TOPIC)
-        print(f'✓ Connected to Local Mosquitto!')
-        print(f'✓ Subscribed to topic: {MQTT_TOPIC}')
+        client.subscribe(CONTROL_TOPIC)
+        print("MQTT Connected!")
+        return client
     except Exception as e:
-        print(f"✗ MQTT Connection failed: {e}")
-        raise e
+        print("MQTT Connection failed:", e)
+        return None
 
-def restart():
-    print('Failed to connect. Restarting...')
-    sleep(5)
-    machine.reset()
+# ========= MAIN =========
+setup_ap()
 
-try:
-    connect_wifi()
-    connect_mqtt()
-except Exception as e:
-    print(f"Connection error: {e}")
-    restart()
+# Give PC time to connect and broker to start if needed
+utime.sleep(5) 
+
+client = None
+while client is None:
+    client = connect_mqtt()
+    if client is None:
+        utime.sleep(2)
+
+last = 0
 
 while True:
-    try:
-        client.check_msg()
-        sleep(0.1) 
-    except Exception as e:
-        print(f"Loop error: {e}")
-        try:
-            connect_mqtt()
-        except:
-            pass
-        sleep(2)
+    client.check_msg()
+
+    if utime.time() - last >= 2:
+        raw = sensor.read()
+        percent = int((raw / 4095) * 100)
+
+        payload = ujson.dumps({
+            "water": percent,
+            "raw": raw
+        })
+
+        client.publish(WATER_TOPIC, payload, retain=True)
+        print("Published:", payload)
+        last = utime.time()
+
+    utime.sleep(0.1)
+
 

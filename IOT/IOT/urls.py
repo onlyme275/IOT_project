@@ -16,11 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from .views import get_water_level
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('api/water-level/', get_water_level, name='water-level'),
     path('api/', include('esp.urls')),
 ]
-
-
-

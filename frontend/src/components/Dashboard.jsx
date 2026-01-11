@@ -46,7 +46,7 @@ const Dashboard = () => {
             <header>
                 <div className="logo">
                     <span className="icon">💧</span>
-                    <h1>HydroGuard</h1>
+                    <h1> Water level monitor(OnlyMe) </h1>
                 </div>
                 <div className={`status-badge ${status.toLowerCase().includes('online') ? 'connected' : 'disconnected'}`}>
                     <span className="dot"></span>

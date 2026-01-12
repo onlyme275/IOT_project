@@ -9,6 +9,7 @@ MQTT_PORT = 1883
 MQTT_TOPIC = "bbg/esp32/waterlevel"
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "latest_data.json")
 
+
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print("Connected to MQTT Broker!")

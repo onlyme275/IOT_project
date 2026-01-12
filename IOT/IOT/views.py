@@ -9,4 +9,7 @@ def get_water_level(request):
         with open(DATA_FILE, 'r') as f:
             data = json.load(f)
             return JsonResponse(data)
-    return JsonResponse({"error": "No data available"}, status=404)
+    return JsonResponse({"water": 0, "raw": 0})
+
+
+

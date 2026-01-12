@@ -23,3 +23,5 @@ urlpatterns = [
     path('api/water-level/', get_water_level, name='water-level'),
     path('api/', include('esp.urls')),
 ]
+
+

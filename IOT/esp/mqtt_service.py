@@ -3,13 +3,15 @@ import threading
 import time
 import json
 
-BROKER = "127.0.0.1"
+BROKER = "broker.mqttdashboard.com"
 PORT = 1883
 
-TOPIC_WATER = "esp32/micro/water"
-TOPIC_CONTROL = "esp32/micro/control"
+TOPIC_WATER = "bbg/esp32/waterlevel"
+TOPIC_CONTROL = "bbg/esp32/motor"
 
 class MQTTService:
+    TOPIC_WATER = TOPIC_WATER
+    TOPIC_CONTROL = TOPIC_CONTROL
     _instance = None
     _lock = threading.Lock()
 

@@ -14,7 +14,7 @@ def run_iot(request):
     if command not in ["ON", "OFF"]:
         return JsonResponse({"error": "Invalid command"}, status=400)
 
-    mqtt_service.publish("esp32/micro/control", command)
+    mqtt_service.publish(mqtt_service.TOPIC_CONTROL, command)
     return JsonResponse({"status": "success", "command": command})
 
 

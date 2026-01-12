@@ -16,18 +16,37 @@ WATER_TOPIC = b"esp32/micro/water"
 CONTROL_TOPIC = b"esp32/micro/control"
 
 # ========= HARDWARE =========
+# Water Sensor (ADC on D34)
 sensor = ADC(Pin(34))
 sensor.atten(ADC.ATTN_11DB)  
-relay = Pin(14, Pin.OUT)
-led = Pin(2, Pin.OUT)
+
+# LEDs
+led1 = Pin(32, Pin.OUT)
+led2 = Pin(33, Pin.OUT)
+led3 = Pin(25, Pin.OUT)
+
+# L298N Motor Driver
+ena = Pin(14, Pin.OUT)
+in1 = Pin(26, Pin.OUT)
+in2 = Pin(27, Pin.OUT)
+
+# Status LED (Optional, kept from original)
+status_led = Pin(2, Pin.OUT)
 
 # ========= CALLBACK =========
 def on_message(topic, msg):
     cmd = msg.decode()
+    print("Received Command:", cmd)
     if cmd == "ON":
-        relay.value(1)
+        # Enable motor
+        ena.value(1)
+        in1.value(1)
+        in2.value(0)
     elif cmd == "OFF":
-        relay.value(0)
+        # Disable motor
+        ena.value(0)
+        in1.value(0)
+        in2.value(0)
 
 # ========= WIFI AP SETUP =========
 def setup_ap():
@@ -35,14 +54,11 @@ def setup_ap():
     ap.active(True)
     ap.config(essid=SSID, password=PASSWORD)
     
-    # Wait for AP to be active
     while not ap.active():
         utime.sleep(0.5)
         
     print("AP Active. IP Config:", ap.ifconfig())
-    # Note: ESP32 AP IP is usually 192.168.4.1
-    # PC should connect to this AP and will likely get 192.168.4.2
-    led.value(1)
+    status_led.value(1)
 
 # ========= MQTT CONNECT =========
 def connect_mqtt():
@@ -61,8 +77,6 @@ def connect_mqtt():
 
 # ========= MAIN =========
 setup_ap()
-
-# Give PC time to connect and broker to start if needed
 utime.sleep(5) 
 
 client = None
@@ -74,21 +88,45 @@ while client is None:
 last = 0
 
 while True:
-    client.check_msg()
+    try:
+        client.check_msg()
+    except Exception as e:
+        print("MQTT check error:", e)
+        client = connect_mqtt()
 
     if utime.time() - last >= 2:
         raw = sensor.read()
         percent = int((raw / 4095) * 100)
+
+        # LED Logic based on water level
+        if percent < 34:
+            led1.value(1)
+            led2.value(0)
+            led3.value(0)
+        elif percent < 67:
+            led1.value(1)
+            led2.value(1)
+            led3.value(0)
+        else:
+            led1.value(1)
+            led2.value(1)
+            led3.value(1)
 
         payload = ujson.dumps({
             "water": percent,
             "raw": raw
         })
 
-        client.publish(WATER_TOPIC, payload, retain=True)
-        print("Published:", payload)
+        try:
+            client.publish(WATER_TOPIC, payload, retain=True)
+            print("Published:", payload)
+        except Exception as e:
+            print("Publish failed:", e)
+            client = connect_mqtt()
+            
         last = utime.time()
 
     utime.sleep(0.1)
+
 
 
